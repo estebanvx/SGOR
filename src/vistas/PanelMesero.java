@@ -339,15 +339,9 @@ public class PanelMesero extends JFrame {
         lblMesa.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                String numMesa = JOptionPane.showInputDialog(null, "Ingresa el número de mesa:", "Seleccionar Mesa", JOptionPane.QUESTION_MESSAGE);
-                if (numMesa != null && !numMesa.trim().isEmpty()) {
-                    try {
-                        int mesa = Integer.parseInt(numMesa.trim()); 
-                        lblMesa.setText("Mesa Seleccionada: " + mesa);
-                    } catch (NumberFormatException ex) {
-                        JOptionPane.showMessageDialog(null, "Por favor, ingresa solo números.", "Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                }
+                // ¡MAGIA AQUÍ! Abrimos el mapa de mesas pasándole "this" (esta misma ventana)
+                MapaMesas mapa = new MapaMesas(PanelMesero.this);
+                mapa.setVisible(true);
             }
         });
         
@@ -453,6 +447,11 @@ public class PanelMesero extends JFrame {
 
         contenedorGrid.revalidate();
         contenedorGrid.repaint();
+    }
+    
+    // Método para recibir el número de mesa desde el Mapa de Mesas
+    public void setMesaSeleccionada(int numMesa) {
+        lblMesa.setText("Mesa Seleccionada: " + numMesa);
     }
 
     public static void main(String[] args) {
