@@ -36,7 +36,7 @@ public class IniciarSesion extends JFrame {
     private int intentosFallidos = 0;
 
     public IniciarSesion() {
-        setTitle("Comanda - Inicio de Sesión");
+        setTitle("SGO Restaurant - Inicio de Sesión");
         setSize(400, 750);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -62,8 +62,8 @@ public class IniciarSesion extends JFrame {
         panelPrincipal.add(lblLogo);
 
         // --- SECCIÓN 2: CAJAS DE TEXTO ---
-        Font fuenteEtiqueta = new Font("Arial", Font.PLAIN, 14);
-        Font fuenteCaja = new Font("Arial", Font.BOLD, 18);
+        Font fuenteEtiqueta = new Font("Segoe UI", Font.PLAIN, 14);
+        Font fuenteCaja = new Font("Segoe UI", Font.BOLD, 18);
 
         JLabel lblId = new JLabel("ID de Empleado:");
         lblId.setBounds(50, 150, 300, 20);
@@ -103,7 +103,7 @@ public class IniciarSesion extends JFrame {
 
         // --- SECCIÓN 3: TECLADO NUMÉRICO ---
         int xIni = 85, yIni = 300, anchoBtn = 65, altoBtn = 65, hueco = 15;
-        Font fuenteNumeros = new Font("Arial", Font.BOLD, 22);
+        Font fuenteNumeros = new Font("Segoe UI", Font.BOLD, 22);
         String[][] numeros = { {"7", "8", "9"}, {"4", "5", "6"}, {"1", "2", "3"} };
 
         for (int i = 0; i < 3; i++) {
@@ -116,7 +116,6 @@ public class IniciarSesion extends JFrame {
             }
         }
 
-        // Botón C (Limpiar todo)
         JButton btnLimpiar = new JButton("C");
         btnLimpiar.setBounds(xIni + (0 * (anchoBtn + hueco)), yIni + (3 * (altoBtn + hueco)), anchoBtn, altoBtn);
         formatNumerButton(btnLimpiar, fuenteNumeros);
@@ -127,14 +126,12 @@ public class IniciarSesion extends JFrame {
         });
         panelPrincipal.add(btnLimpiar);
 
-        // Botón 0
         JButton btn0 = new JButton("0");
         btn0.setBounds(xIni + (1 * (anchoBtn + hueco)), yIni + (3 * (altoBtn + hueco)), anchoBtn, altoBtn);
         formatNumerButton(btn0, fuenteNumeros);
         btn0.addActionListener(accionTeclado);
         panelPrincipal.add(btn0);
 
-        // Botón Borrar (<-)
         JButton btnBorrar = new JButton("<-");
         btnBorrar.setBounds(xIni + (2 * (anchoBtn + hueco)), yIni + (3 * (altoBtn + hueco)), anchoBtn, altoBtn);
         formatNumerButton(btnBorrar, fuenteNumeros);
@@ -152,7 +149,7 @@ public class IniciarSesion extends JFrame {
         btnIngresar.setBounds(90, 630, 220, 45);
         btnIngresar.setBackground(COLOR_BOTON_INGRESAR);
         btnIngresar.setForeground(Color.WHITE);
-        btnIngresar.setFont(new Font("Arial", Font.BOLD, 16));
+        btnIngresar.setFont(new Font("Segoe UI", Font.BOLD, 16));
         btnIngresar.setBorderPainted(false);
         btnIngresar.setFocusPainted(false);
         btnIngresar.setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -182,34 +179,31 @@ public class IniciarSesion extends JFrame {
                     modelo.Usuario empleado = baseDatos.iniciarSesion(idEmpleado, pinTexto);
 
                     if (empleado != null) {
-                        // ÉXITO
-                        intentosFallidos = 0; // Reiniciamos el contador
+                        intentosFallidos = 0; 
                         
-                        javax.swing.JOptionPane.showMessageDialog(null, 
-                            "Acceso concedido, Bienvenido al sistema", 
-                            "Bienvenido", 
-                            javax.swing.JOptionPane.INFORMATION_MESSAGE);
-                            
-                        // --- EL ENRUTADOR ---
+                        // --- ¡EL ENRUTADOR MAESTRO! ---
                         String rolUsuario = empleado.getRol();
                         
                         switch (rolUsuario) {
                             case "Mesero":
                                 PanelMesero ventanaMesero = new PanelMesero();
-                                ventanaMesero.setVisible(true); // Abrimos la ventana del mesero
-                                dispose(); // Esto es lo que CIERRA la ventana de Login
-                                break;
-                                
-                            case "Administrador":
-                                javax.swing.JOptionPane.showMessageDialog(null, "Pronto construiremos el Panel de Administrador.");
+                                ventanaMesero.setIdMeseroActual(idEmpleado); // ¡Le pasamos el ID real!
+                                ventanaMesero.setVisible(true); 
+                                dispose(); // Cerramos el Login
                                 break;
                                 
                             case "Cocinero":
-                                javax.swing.JOptionPane.showMessageDialog(null, "Pronto construiremos el Panel de Cocina.");
+                                PanelCocinero ventanaCocinero = new PanelCocinero();
+                                ventanaCocinero.setVisible(true);
+                                dispose(); // Cerramos el Login
+                                break;
+                                
+                            case "Administrador":
+                                javax.swing.JOptionPane.showMessageDialog(null, "Bienvenido Administrador. Pronto construiremos tu Panel.");
                                 break;
                                 
                             case "Cajero":
-                                javax.swing.JOptionPane.showMessageDialog(null, "Pronto construiremos el Panel de Caja.");
+                                javax.swing.JOptionPane.showMessageDialog(null, "Bienvenido Cajero. Pronto construiremos tu Panel.");
                                 break;
                         }
                         
@@ -225,7 +219,7 @@ public class IniciarSesion extends JFrame {
                             System.exit(0);
                         } else {
                             javax.swing.JOptionPane.showMessageDialog(null, 
-                                "contraseña incorrecta", 
+                                "Credenciales incorrectas", 
                                 "Error de Acceso", 
                                 javax.swing.JOptionPane.WARNING_MESSAGE);
                             
@@ -235,13 +229,12 @@ public class IniciarSesion extends JFrame {
                     }
 
                 } catch (NumberFormatException ex) {
-                    javax.swing.JOptionPane.showMessageDialog(null, "El ID debe ser un número entero válido.", "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+                    javax.swing.JOptionPane.showMessageDialog(null, "El ID debe ser un número entero.", "Error", javax.swing.JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
 
         panelPrincipal.add(btnIngresar);
-        
         txtId.requestFocus(); 
     }
 
@@ -263,6 +256,8 @@ public class IniciarSesion extends JFrame {
     }
 
     public static void main(String[] args) {
+        System.setProperty("awt.useSystemAAFontSettings","on");
+        System.setProperty("swing.aatext", "true");
         IniciarSesion ventana = new IniciarSesion();
         ventana.setVisible(true);
     }

@@ -423,10 +423,4 @@ public class PanelCocinero extends JFrame {
         btnNotificarMesero.setEnabled(false);
     }
 
-    public static void main(String[] args) {
-        // Mejoramos el renderizado de texto
-        System.setProperty("awt.useSystemAAFontSettings","on");
-        System.setProperty("swing.aatext", "true");
-        new PanelCocinero().setVisible(true);
-    }
 }

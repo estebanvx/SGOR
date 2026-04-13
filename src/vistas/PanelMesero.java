@@ -28,6 +28,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
+import javax.swing.Timer;
 import javax.swing.border.LineBorder;
 import javax.swing.table.DefaultTableModel;
 
@@ -47,11 +48,14 @@ public class PanelMesero extends JFrame {
     private JSpinner spCantidad; 
     private JLabel lblMesa; 
 
-    // --- VARIABLES DE MEMORIA PARA EL FLUJO DE SELECCIÓN ---
+    // --- VARIABLES DE MEMORIA ---
     private int platilloSeleccionadoId = 0; 
     private String platilloSeleccionadoNombre = "";
     private double platilloSeleccionadoPrecio = 0.0;
     private JButton botonSeleccionadoAnterior = null;
+    
+    // El ID real del mesero que inició sesión
+    private int idMeseroActual = 1; 
 
     public PanelMesero() {
         setTitle("Comanda - Panel de Mesero");
@@ -62,14 +66,13 @@ public class PanelMesero extends JFrame {
         getContentPane().setBackground(COLOR_FONDO);
 
         txtNotas = new JTextArea();
-        txtNotas.setFont(new Font("Arial", Font.PLAIN, 14));
+        txtNotas.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         txtNotas.setLineWrap(true); 
         txtNotas.setWrapStyleWord(true); 
 
         // =========================================================
-        // 1. PANEL IZQUIERDO: LOGO, TICKET Y BOTONES DE ACCIÓN
+        // 1. PANEL IZQUIERDO: LOGO, TICKET Y BOTONES
         // =========================================================
-        
         JLabel lblLogo = new JLabel("LOGO", SwingConstants.CENTER);
         lblLogo.setBounds(20, 20, 250, 100);
         lblLogo.setOpaque(true);
@@ -77,7 +80,6 @@ public class PanelMesero extends JFrame {
         lblLogo.setBorder(new LineBorder(COLOR_BORDE));
         add(lblLogo);
 
-        // Columnas visibles e invisibles (ID y Precio)
         String[] columnas = {"Cant.", "Platillo", "Nota Especial", "ID_Platillo", "Precio_Unitario"};
         modeloTicket = new DefaultTableModel(null, columnas);
         tablaTicket = new JTable(modeloTicket);
@@ -86,7 +88,7 @@ public class PanelMesero extends JFrame {
         tablaTicket.getColumnModel().getColumn(1).setPreferredWidth(100); 
         tablaTicket.getColumnModel().getColumn(2).setPreferredWidth(110); 
         
-        // Ocultamos el ID y el Precio
+        // Ocultamos las columnas 3 y 4 (ID y Precio)
         tablaTicket.getColumnModel().getColumn(3).setMinWidth(0);
         tablaTicket.getColumnModel().getColumn(3).setMaxWidth(0);
         tablaTicket.getColumnModel().getColumn(3).setWidth(0);
@@ -101,12 +103,12 @@ public class PanelMesero extends JFrame {
 
         JLabel lblCantidad = new JLabel("Cantidad:");
         lblCantidad.setBounds(20, 450, 80, 30);
-        lblCantidad.setFont(new Font("Arial", Font.BOLD, 14));
+        lblCantidad.setFont(new Font("Segoe UI", Font.BOLD, 14));
         add(lblCantidad);
 
         spCantidad = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
         spCantidad.setBounds(100, 450, 170, 30);
-        spCantidad.setFont(new Font("Arial", Font.BOLD, 16));
+        spCantidad.setFont(new Font("Segoe UI", Font.BOLD, 16));
         add(spCantidad);
 
         JButton btnAgregar = crearBotonAccion("AGREGAR", 20, 490, 250, 40);
@@ -163,12 +165,13 @@ public class PanelMesero extends JFrame {
             if (respuesta == JOptionPane.YES_OPTION) {
                 modeloTicket.setRowCount(0); 
                 lblMesa.setText("Mesa Seleccionada: 0"); 
+                
+                // Limpiamos la memoria del platillo también aquí
+                limpiarMemoriaPlatillo();
             }
         });
 
-        // =========================================================
-        // --- BOTÓN FINALIZAR ORDEN (LA CONEXIÓN A MYSQL MAESTRA) ---
-        // =========================================================
+        // --- BOTÓN FINALIZAR ORDEN ---
         btnFinalizarOrden.addActionListener(e -> {
             if (modeloTicket.getRowCount() == 0) {
                 JOptionPane.showMessageDialog(null, "Error: No se ingresaron datos del pedido. Agrega platillos primero.", "Atención", JOptionPane.WARNING_MESSAGE);
@@ -177,20 +180,18 @@ public class PanelMesero extends JFrame {
             
             String textoMesa = lblMesa.getText();
             if (textoMesa.equals("Mesa Seleccionada: 0")) {
-                JOptionPane.showMessageDialog(null, "Error: Debes seleccionar el número de mesa antes de enviar la orden.", "Atención", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(null, "Error: Debes seleccionar una mesa en el recuadro inferior derecho antes de enviar la orden.", "Atención", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
             int respuesta = JOptionPane.showConfirmDialog(null, "¿Desea enviar la comanda a cocina para la " + textoMesa + "?", "Confirmar Envío", JOptionPane.YES_NO_OPTION);
             
             if (respuesta == JOptionPane.YES_OPTION) {
-                
                 try {
                     Conexion cn = new Conexion();
                     Connection con = cn.getConexion(); 
-                    con.setAutoCommit(false); // Iniciamos transacción segura
+                    con.setAutoCommit(false); 
                     
-                    // 1. Calcular el total del pedido recorriendo la tabla
                     double totalPedido = 0.0;
                     for (int i = 0; i < modeloTicket.getRowCount(); i++) {
                         int cant = Integer.parseInt(modeloTicket.getValueAt(i, 0).toString());
@@ -198,28 +199,26 @@ public class PanelMesero extends JFrame {
                         totalPedido += (cant * precioUnitario);
                     }
                     
-                    // Extraemos solo el número de la mesa
                     int idMesa = Integer.parseInt(textoMesa.replace("Mesa Seleccionada: ", "").trim());
                     
-                    // 2. INSERTAR EN LA TABLA 'pedido'
+                    // INSERTAR EN LA TABLA 'pedido'
                     String sqlPedido = "INSERT INTO pedido (estado, total, forma_pago, id_mesa, id_usuario) VALUES (?, ?, ?, ?, ?)";
                     PreparedStatement psPedido = con.prepareStatement(sqlPedido, Statement.RETURN_GENERATED_KEYS);
                     psPedido.setString(1, "Pendiente");
                     psPedido.setDouble(2, totalPedido);
-                    psPedido.setString(3, "Efectivo"); 
+                    psPedido.setString(3, "Pendiente"); // Aún no se cobra
                     psPedido.setInt(4, idMesa);
-                    psPedido.setInt(5, 1); // ID temporal del mesero
+                    psPedido.setInt(5, idMeseroActual); 
                     
                     psPedido.executeUpdate(); 
                     
-                    // 3. RECUPERAR EL ID GENERADO
                     ResultSet rsLlaves = psPedido.getGeneratedKeys();
                     int idPedidoGenerado = 0;
                     if (rsLlaves.next()) {
                         idPedidoGenerado = rsLlaves.getInt(1);
                     }
                     
-                    // 4. INSERTAR EN LA TABLA 'detalle_pedido'
+                    // INSERTAR EN LA TABLA 'detalle_pedido'
                     String sqlDetalle = "INSERT INTO detalle_pedido (id_pedido, id_platillo, cantidad, precio_unitario, nota_especial) VALUES (?, ?, ?, ?, ?)";
                     PreparedStatement psDetalle = con.prepareStatement(sqlDetalle);
                     
@@ -237,26 +236,27 @@ public class PanelMesero extends JFrame {
                         
                         psDetalle.addBatch(); 
                     }
-                    
                     psDetalle.executeBatch(); 
                     
-                    // 5. ACTUALIZAR EL ESTADO DE LA MESA A 'Ocupada' (¡Lo nuevo!)
+                    // ACTUALIZAR EL ESTADO DE LA MESA A 'Ocupada'
                     String sqlActualizarMesa = "UPDATE mesa SET estado = 'Ocupada' WHERE id_mesa = ?";
                     PreparedStatement psMesa = con.prepareStatement(sqlActualizarMesa);
                     psMesa.setInt(1, idMesa);
                     psMesa.executeUpdate();
 
-                    // Confirmamos que toda la transacción fue exitosa
                     con.commit(); 
                     con.close();
                     
                     JOptionPane.showMessageDialog(null, "¡Comanda #" + idPedidoGenerado + " enviada exitosamente a cocina!", "Éxito", JOptionPane.INFORMATION_MESSAGE);
                     
-                    // Limpiamos pantalla
+                    // Limpiamos todo visualmente
                     modeloTicket.setRowCount(0); 
                     lblMesa.setText("Mesa Seleccionada: 0");
                     txtNotas.setText("");
                     spCantidad.setValue(1);
+                    
+                    // --- CORRECCIÓN BUG FUGA DE MEMORIA ---
+                    limpiarMemoriaPlatillo();
                     
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(null, "Error al guardar en la base de datos: " + ex.getMessage(), "Error SQL", JOptionPane.ERROR_MESSAGE);
@@ -265,9 +265,8 @@ public class PanelMesero extends JFrame {
         });
 
         // =========================================================
-        // 2. PANEL SUPERIOR: FILTROS Y BÚSQUEDA
+        // 2. PANEL SUPERIOR Y FILTROS
         // =========================================================
-        
         int xTop = 290;
         JButton btnTodos = crearBotonFiltro("Todos", xTop, 20, 90, 45);
         JButton btnPlatillos = crearBotonFiltro("Platillos", xTop + 100, 20, 100, 45);
@@ -281,22 +280,20 @@ public class PanelMesero extends JFrame {
         
         JTextField txtBuscar = new JTextField();
         txtBuscar.setBounds(xTop + 430, 20, 270, 45); 
-        txtBuscar.setFont(new Font("Arial", Font.PLAIN, 16));
+        txtBuscar.setFont(new Font("Segoe UI", Font.PLAIN, 16));
         txtBuscar.setBorder(BorderFactory.createTitledBorder("Búsqueda rápida:"));
         add(txtBuscar);
         
         txtBuscar.addKeyListener(new java.awt.event.KeyAdapter() {
             @Override
             public void keyReleased(java.awt.event.KeyEvent evt) {
-                String textoBusqueda = txtBuscar.getText();
-                cargarPlatillos("Todos", textoBusqueda);
+                cargarPlatillos("Todos", txtBuscar.getText());
             }
         });
 
         // =========================================================
-        // 3. CENTRO DINÁMICO
+        // 3. CENTRO DINÁMICO (MENÚ)
         // =========================================================
-        
         contenedorGrid = new JPanel(new GridLayout(0, 4, 15, 15));
         contenedorGrid.setBackground(COLOR_BLANCO);
         contenedorGrid.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
@@ -313,9 +310,8 @@ public class PanelMesero extends JFrame {
         add(scrollDinamico);
 
         // =========================================================
-        // 4. PANEL INFERIOR
+        // 4. PANEL INFERIOR Y SELECCIÓN DE MESA
         // =========================================================
-        
         lblImagenPlatillo = new JLabel("IMAGEN", SwingConstants.CENTER);
         lblImagenPlatillo.setBounds(290, 580, 150, 100);
         lblImagenPlatillo.setOpaque(true);
@@ -330,7 +326,7 @@ public class PanelMesero extends JFrame {
 
         lblMesa = new JLabel("Mesa Seleccionada: 0", SwingConstants.CENTER);
         lblMesa.setBounds(860, 580, 200, 100);
-        lblMesa.setFont(new Font("Arial", Font.BOLD, 16));
+        lblMesa.setFont(new Font("Segoe UI", Font.BOLD, 16));
         lblMesa.setOpaque(true);
         lblMesa.setBackground(COLOR_BLANCO);
         lblMesa.setBorder(new LineBorder(COLOR_BORDE));
@@ -339,7 +335,6 @@ public class PanelMesero extends JFrame {
         lblMesa.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                // ¡MAGIA AQUÍ! Abrimos el mapa de mesas pasándole "this" (esta misma ventana)
                 MapaMesas mapa = new MapaMesas(PanelMesero.this);
                 mapa.setVisible(true);
             }
@@ -348,6 +343,19 @@ public class PanelMesero extends JFrame {
         add(lblMesa);
 
         cargarPlatillos("Todos", ""); 
+        iniciarEscuchaNotificaciones();
+    }
+
+    // --- NUEVO MÉTODO AUXILIAR PARA LIMPIAR LA MEMORIA ---
+    private void limpiarMemoriaPlatillo() {
+        platilloSeleccionadoId = 0; 
+        platilloSeleccionadoNombre = "";
+        platilloSeleccionadoPrecio = 0.0;
+        lblImagenPlatillo.setText("IMAGEN");
+        if (botonSeleccionadoAnterior != null) {
+            botonSeleccionadoAnterior.setBorder(new LineBorder(COLOR_BORDE, 2)); // Quitamos el borde azul
+            botonSeleccionadoAnterior = null;
+        }
     }
 
     private JButton crearBotonAccion(String texto, int x, int y, int ancho, int alto) {
@@ -355,7 +363,7 @@ public class PanelMesero extends JFrame {
         btn.setBounds(x, y, ancho, alto);
         btn.setBackground(COLOR_AZUL);
         btn.setForeground(COLOR_BLANCO);
-        btn.setFont(new Font("Arial", Font.BOLD, 14));
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
         btn.setFocusPainted(false);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         add(btn);
@@ -367,7 +375,7 @@ public class PanelMesero extends JFrame {
         btn.setBounds(x, y, ancho, alto);
         btn.setBackground(COLOR_BLANCO);
         btn.setForeground(Color.BLACK);
-        btn.setFont(new Font("Arial", Font.BOLD, 14));
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 14));
         btn.setBorder(new LineBorder(COLOR_BORDE));
         btn.setFocusPainted(false);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -377,11 +385,7 @@ public class PanelMesero extends JFrame {
 
     private void cargarPlatillos(String filtroCategoria, String busqueda) {
         contenedorGrid.removeAll();
-        platilloSeleccionadoId = 0; 
-        platilloSeleccionadoNombre = "";
-        platilloSeleccionadoPrecio = 0.0;
-        botonSeleccionadoAnterior = null;
-        lblImagenPlatillo.setText("IMAGEN");
+        limpiarMemoriaPlatillo(); // También limpiamos al cambiar de categoría
 
         String sql = "SELECT id_platillo, nombre, precio, categoria FROM platillo WHERE 1=1";
         
@@ -448,14 +452,55 @@ public class PanelMesero extends JFrame {
         contenedorGrid.revalidate();
         contenedorGrid.repaint();
     }
+
+    public void setIdMeseroActual(int id) {
+        this.idMeseroActual = id;
+    }
     
-    // Método para recibir el número de mesa desde el Mapa de Mesas
     public void setMesaSeleccionada(int numMesa) {
         lblMesa.setText("Mesa Seleccionada: " + numMesa);
     }
 
-    public static void main(String[] args) {
-        PanelMesero ventana = new PanelMesero();
-        ventana.setVisible(true);
+    private void iniciarEscuchaNotificaciones() {
+        Timer timer = new Timer(5000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                verificarPedidosListos();
+            }
+        });
+        timer.start();
+    }
+
+    private void verificarPedidosListos() {
+        String sqlBusqueda = "SELECT p.id_pedido, m.numero FROM pedido p " +
+                             "JOIN mesa m ON p.id_mesa = m.id_mesa " +
+                             "WHERE p.id_usuario = ? AND p.estado = 'Entregado'";
+
+        try {
+            Conexion cn = new Conexion();
+            Connection con = cn.getConexion();
+            PreparedStatement ps = con.prepareStatement(sqlBusqueda);
+            ps.setInt(1, idMeseroActual);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                int idPedido = rs.getInt("id_pedido");
+                int numMesa = rs.getInt("numero");
+
+                String sqlActualizar = "UPDATE pedido SET estado = 'Servido' WHERE id_pedido = ?";
+                PreparedStatement psActualizar = con.prepareStatement(sqlActualizar);
+                psActualizar.setInt(1, idPedido);
+                psActualizar.executeUpdate();
+
+                java.awt.Toolkit.getDefaultToolkit().beep(); 
+                JOptionPane.showMessageDialog(PanelMesero.this, 
+                        "🔔 ¡ATENCIÓN MESERO!\nLa Comanda #" + idPedido + " de la Mesa " + numMesa + " ya está lista en cocina.", 
+                        "Pedido Listo", 
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+            con.close();
+        } catch (Exception ex) {
+            System.out.println("Error en el hilo de notificaciones: " + ex.getMessage());
+        }
     }
 }
