@@ -15,6 +15,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList; // ¡NUEVO IMPORT PARA LA MEMORIA!
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -56,9 +57,12 @@ public class PanelMesero extends JFrame {
     
     // El ID real del mesero que inició sesión
     private int idMeseroActual = 1; 
+    
+    // ¡NUEVO!: Memoria para no spamear al mesero con el estado "En Preparación"
+    private ArrayList<Integer> pedidosNotificadosEnPrep = new ArrayList<>();
 
     public PanelMesero() {
-        setTitle("Comanda - Panel de Mesero");
+        setTitle("SGO Restaurant - Panel de Mesero");
         setSize(1100, 750); 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -88,7 +92,6 @@ public class PanelMesero extends JFrame {
         tablaTicket.getColumnModel().getColumn(1).setPreferredWidth(100); 
         tablaTicket.getColumnModel().getColumn(2).setPreferredWidth(110); 
         
-        // Ocultamos las columnas 3 y 4 (ID y Precio)
         tablaTicket.getColumnModel().getColumn(3).setMinWidth(0);
         tablaTicket.getColumnModel().getColumn(3).setMaxWidth(0);
         tablaTicket.getColumnModel().getColumn(3).setWidth(0);
@@ -116,7 +119,6 @@ public class PanelMesero extends JFrame {
         JButton btnBorrarOrden = crearBotonAccion("BORRAR ORDEN", 20, 590, 250, 40);
         JButton btnFinalizarOrden = crearBotonAccion("FINALIZAR ORDEN", 20, 640, 250, 40);
 
-        // --- BOTÓN AGREGAR ---
         btnAgregar.addActionListener(e -> {
             if (platilloSeleccionadoNombre.isEmpty()) {
                 JOptionPane.showMessageDialog(null, "Primero selecciona un platillo del menú.", "Atención", JOptionPane.WARNING_MESSAGE);
@@ -148,7 +150,6 @@ public class PanelMesero extends JFrame {
             spCantidad.setValue(1); 
         });
 
-        // --- BOTÓN ELIMINAR ---
         btnEliminar.addActionListener(e -> {
             int filaSeleccionada = tablaTicket.getSelectedRow(); 
             if (filaSeleccionada == -1) { 
@@ -158,20 +159,16 @@ public class PanelMesero extends JFrame {
             }
         });
 
-        // --- BOTÓN BORRAR ORDEN ---
         btnBorrarOrden.addActionListener(e -> {
             if (modeloTicket.getRowCount() == 0) return; 
             int respuesta = JOptionPane.showConfirmDialog(null, "¿Estás seguro de borrar toda la orden actual?", "Confirmar", JOptionPane.YES_NO_OPTION);
             if (respuesta == JOptionPane.YES_OPTION) {
                 modeloTicket.setRowCount(0); 
                 lblMesa.setText("Mesa Seleccionada: 0"); 
-                
-                // Limpiamos la memoria del platillo también aquí
                 limpiarMemoriaPlatillo();
             }
         });
 
-        // --- BOTÓN FINALIZAR ORDEN ---
         btnFinalizarOrden.addActionListener(e -> {
             if (modeloTicket.getRowCount() == 0) {
                 JOptionPane.showMessageDialog(null, "Error: No se ingresaron datos del pedido. Agrega platillos primero.", "Atención", JOptionPane.WARNING_MESSAGE);
@@ -201,12 +198,11 @@ public class PanelMesero extends JFrame {
                     
                     int idMesa = Integer.parseInt(textoMesa.replace("Mesa Seleccionada: ", "").trim());
                     
-                    // INSERTAR EN LA TABLA 'pedido'
                     String sqlPedido = "INSERT INTO pedido (estado, total, forma_pago, id_mesa, id_usuario) VALUES (?, ?, ?, ?, ?)";
                     PreparedStatement psPedido = con.prepareStatement(sqlPedido, Statement.RETURN_GENERATED_KEYS);
                     psPedido.setString(1, "Pendiente");
                     psPedido.setDouble(2, totalPedido);
-                    psPedido.setString(3, "Pendiente"); // Aún no se cobra
+                    psPedido.setString(3, "Pendiente"); 
                     psPedido.setInt(4, idMesa);
                     psPedido.setInt(5, idMeseroActual); 
                     
@@ -218,7 +214,6 @@ public class PanelMesero extends JFrame {
                         idPedidoGenerado = rsLlaves.getInt(1);
                     }
                     
-                    // INSERTAR EN LA TABLA 'detalle_pedido'
                     String sqlDetalle = "INSERT INTO detalle_pedido (id_pedido, id_platillo, cantidad, precio_unitario, nota_especial) VALUES (?, ?, ?, ?, ?)";
                     PreparedStatement psDetalle = con.prepareStatement(sqlDetalle);
                     
@@ -238,7 +233,6 @@ public class PanelMesero extends JFrame {
                     }
                     psDetalle.executeBatch(); 
                     
-                    // ACTUALIZAR EL ESTADO DE LA MESA A 'Ocupada'
                     String sqlActualizarMesa = "UPDATE mesa SET estado = 'Ocupada' WHERE id_mesa = ?";
                     PreparedStatement psMesa = con.prepareStatement(sqlActualizarMesa);
                     psMesa.setInt(1, idMesa);
@@ -249,13 +243,10 @@ public class PanelMesero extends JFrame {
                     
                     JOptionPane.showMessageDialog(null, "¡Comanda #" + idPedidoGenerado + " enviada exitosamente a cocina!", "Éxito", JOptionPane.INFORMATION_MESSAGE);
                     
-                    // Limpiamos todo visualmente
                     modeloTicket.setRowCount(0); 
                     lblMesa.setText("Mesa Seleccionada: 0");
                     txtNotas.setText("");
                     spCantidad.setValue(1);
-                    
-                    // --- CORRECCIÓN BUG FUGA DE MEMORIA ---
                     limpiarMemoriaPlatillo();
                     
                 } catch (Exception ex) {
@@ -346,14 +337,13 @@ public class PanelMesero extends JFrame {
         iniciarEscuchaNotificaciones();
     }
 
-    // --- NUEVO MÉTODO AUXILIAR PARA LIMPIAR LA MEMORIA ---
     private void limpiarMemoriaPlatillo() {
         platilloSeleccionadoId = 0; 
         platilloSeleccionadoNombre = "";
         platilloSeleccionadoPrecio = 0.0;
         lblImagenPlatillo.setText("IMAGEN");
         if (botonSeleccionadoAnterior != null) {
-            botonSeleccionadoAnterior.setBorder(new LineBorder(COLOR_BORDE, 2)); // Quitamos el borde azul
+            botonSeleccionadoAnterior.setBorder(new LineBorder(COLOR_BORDE, 2)); 
             botonSeleccionadoAnterior = null;
         }
     }
@@ -385,7 +375,7 @@ public class PanelMesero extends JFrame {
 
     private void cargarPlatillos(String filtroCategoria, String busqueda) {
         contenedorGrid.removeAll();
-        limpiarMemoriaPlatillo(); // También limpiamos al cambiar de categoría
+        limpiarMemoriaPlatillo(); 
 
         String sql = "SELECT id_platillo, nombre, precio, categoria FROM platillo WHERE 1=1";
         
@@ -461,6 +451,9 @@ public class PanelMesero extends JFrame {
         lblMesa.setText("Mesa Seleccionada: " + numMesa);
     }
 
+    // =========================================================
+    // RF07: HILO DE NOTIFICACIONES AUTOMÁTICAS MEJORADO
+    // =========================================================
     private void iniciarEscuchaNotificaciones() {
         Timer timer = new Timer(5000, new ActionListener() {
             @Override
@@ -472,9 +465,10 @@ public class PanelMesero extends JFrame {
     }
 
     private void verificarPedidosListos() {
-        String sqlBusqueda = "SELECT p.id_pedido, m.numero FROM pedido p " +
+        // ¡CAMBIO! Ahora busca los que están "En preparación" O "Entregado"
+        String sqlBusqueda = "SELECT p.id_pedido, m.numero, p.estado FROM pedido p " +
                              "JOIN mesa m ON p.id_mesa = m.id_mesa " +
-                             "WHERE p.id_usuario = ? AND p.estado = 'Entregado'";
+                             "WHERE p.id_usuario = ? AND p.estado IN ('En preparación', 'Entregado')";
 
         try {
             Conexion cn = new Conexion();
@@ -486,17 +480,32 @@ public class PanelMesero extends JFrame {
             while (rs.next()) {
                 int idPedido = rs.getInt("id_pedido");
                 int numMesa = rs.getInt("numero");
+                String estadoActual = rs.getString("estado");
 
-                String sqlActualizar = "UPDATE pedido SET estado = 'Servido' WHERE id_pedido = ?";
-                PreparedStatement psActualizar = con.prepareStatement(sqlActualizar);
-                psActualizar.setInt(1, idPedido);
-                psActualizar.executeUpdate();
+                if (estadoActual.equals("En preparación")) {
+                    // Si NO lo hemos notificado antes, lanzamos la alerta y lo guardamos en la memoria
+                    if (!pedidosNotificadosEnPrep.contains(idPedido)) {
+                        pedidosNotificadosEnPrep.add(idPedido);
+                        
+                        JOptionPane.showMessageDialog(PanelMesero.this, 
+                            "👨‍🍳 Actualización de Orden:\nLa Comanda #" + idPedido + " de la Mesa " + numMesa + " ha comenzado a prepararse en cocina.", 
+                            "Pedido en Curso", 
+                            JOptionPane.INFORMATION_MESSAGE);
+                    }
+                } 
+                else if (estadoActual.equals("Entregado")) {
+                    // Si ya está entregado, lo pasamos a servido para no volver a leerlo nunca
+                    String sqlActualizar = "UPDATE pedido SET estado = 'Servido' WHERE id_pedido = ?";
+                    PreparedStatement psActualizar = con.prepareStatement(sqlActualizar);
+                    psActualizar.setInt(1, idPedido);
+                    psActualizar.executeUpdate();
 
-                java.awt.Toolkit.getDefaultToolkit().beep(); 
-                JOptionPane.showMessageDialog(PanelMesero.this, 
-                        "🔔 ¡ATENCIÓN MESERO!\nLa Comanda #" + idPedido + " de la Mesa " + numMesa + " ya está lista en cocina.", 
-                        "Pedido Listo", 
-                        JOptionPane.INFORMATION_MESSAGE);
+                    java.awt.Toolkit.getDefaultToolkit().beep(); 
+                    JOptionPane.showMessageDialog(PanelMesero.this, 
+                            "🔔 ¡ATENCIÓN MESERO!\nLa Comanda #" + idPedido + " de la Mesa " + numMesa + " ya está lista en barra.", 
+                            "Pedido Terminado", 
+                            JOptionPane.WARNING_MESSAGE);
+                }
             }
             con.close();
         } catch (Exception ex) {
